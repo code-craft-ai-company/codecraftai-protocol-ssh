@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "<package name>"
-description = "<package description>"
+name = "automojo-protocols.ssh"
+description = "Automation Mojo - SSH Protocol"
 version = "0.0.1"
 authors = []
 readme = "README.rst"
@@ -13,7 +13,7 @@ classifiers = [
 keywords = [
     "python"
 ]
-packages = [{include="mojo", from="source/packages"}]
+packages = [{include="automojo", from="source/packages"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
