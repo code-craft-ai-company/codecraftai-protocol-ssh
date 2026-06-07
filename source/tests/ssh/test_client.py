@@ -3,10 +3,10 @@ import unittest
 from unittest.mock import MagicMock, patch
 import socket
 
-from automojo.protocols.ssh.sshclient import SshClient
-from automojo.protocols.ssh.sshtransport import SshTransport
-from automojo.protocols.ssh.sshconnection import SshConnection
-from automojo.protocols.ssh.sshauth import SshAuthAgent
+from ccai.protocols.ssh.sshclient import SshClient
+from ccai.protocols.ssh.sshtransport import SshTransport
+from ccai.protocols.ssh.sshconnection import SshConnection
+from ccai.protocols.ssh.sshauth import SshAuthAgent
 
 class TestSshClient(unittest.TestCase):
     def setUp(self):
@@ -17,10 +17,10 @@ class TestSshClient(unittest.TestCase):
             self.client.transport.active = False
 
 
-    @patch('automojo.protocols.ssh.sshclient.socket.create_connection')
-    @patch('automojo.protocols.ssh.sshclient.SshTransport')
-    @patch('automojo.protocols.ssh.sshclient.SshConnection')
-    @patch('automojo.protocols.ssh.sshclient.SshAuthAgent')
+    @patch('ccai.protocols.ssh.sshclient.socket.create_connection')
+    @patch('ccai.protocols.ssh.sshclient.SshTransport')
+    @patch('ccai.protocols.ssh.sshclient.SshConnection')
+    @patch('ccai.protocols.ssh.sshclient.SshAuthAgent')
     def test_connect_password(self, MockAuth, MockConn, MockTransport, MockSocket):
         # Setup mocks
         mock_sock = MagicMock()
@@ -104,7 +104,7 @@ class TestSshClient(unittest.TestCase):
         
         self.assertEqual(chan, mock_chan)
 
-    @patch('automojo.protocols.ssh.sshclient.SshTransport')
+    @patch('ccai.protocols.ssh.sshclient.SshTransport')
     def test_close(self, MockTransport):
         mock_transport = MagicMock()
         self.client.transport = mock_transport

@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import MagicMock
-from automojo.ssh.auth import AuthAgent, AuthError
-from automojo.ssh import constants
-from automojo.ssh.packet import Packet
+from ccai.ssh.auth import AuthAgent, AuthError
+from ccai.ssh import constants
+from ccai.ssh.packet import Packet
 
 class TestAuth(unittest.TestCase):
     def setUp(self):

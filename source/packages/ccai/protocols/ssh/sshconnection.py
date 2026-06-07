@@ -6,8 +6,8 @@ import logging
 
 from queue import Queue
 
-from automojo.protocols.ssh import sshconstants
-from automojo.protocols.ssh.sshpacket import SshPacket
+from ccai.protocols.ssh import sshconstants
+from ccai.protocols.ssh.sshpacket import SshPacket
 
 logger = logging.getLogger(__name__)
 

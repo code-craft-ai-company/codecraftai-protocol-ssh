@@ -8,26 +8,26 @@
 """
 
 __author__ = "Myron Walker"
-__copyright__ = "Copyright 2025, Automation Mojo LLC"
+__copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 from typing import Callable, Optional, Tuple
 
-from automojo.xmodules.xlogging.enhancedloggers import getEnhancedLogger
+from ccai.xmodules.xlogging.enhancedloggers import getEnhancedLogger
 import os
 import shlex
 import stat
 import time
 
-from automojo.protocols.ssh.sshclient import SshClient
-from automojo.protocols.ssh.sshconnection import SshChannel
-from automojo.protocols.ssh.sshsftp import SshSFTPClient, SshSFTPAttributes
+from ccai.protocols.ssh.sshclient import SshClient
+from ccai.protocols.ssh.sshconnection import SshChannel
+from ccai.protocols.ssh.sshsftp import SshSFTPClient, SshSFTPAttributes
 
-from automojo.errors.exceptions import CommandError
+from ccai.errors.exceptions import CommandError
 
-from automojo.xmodules.xformatting import indent_lines, format_command_result
+from ccai.xmodules.xformatting import indent_lines, format_command_result
 
-from automojo.protocols.ssh.sshconst import (
+from ccai.protocols.ssh.sshconst import (
     DEFAULT_SSH_TIMEOUT,
     DEFAULT_SSH_RETRY_INTERVAL,
     INTERACTIVE_PROMPT,

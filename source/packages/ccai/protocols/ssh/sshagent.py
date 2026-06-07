@@ -8,28 +8,28 @@
 """
 
 __author__ = "Myron Walker"
-__copyright__ = "Copyright 2025, Automation Mojo LLC"
+__copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
 from typing import Dict, Optional, Sequence, Union, Tuple
 
-from automojo.xmodules.xlogging.enhancedloggers import getEnhancedLogger
+from ccai.xmodules.xlogging.enhancedloggers import getEnhancedLogger
 
-from automojo.protocols.ssh.sshclient import SshClient
-from automojo.protocols.ssh.sshconnection import SshChannel
+from ccai.protocols.ssh.sshclient import SshClient
+from ccai.protocols.ssh.sshconnection import SshChannel
 import socket
 import time
 
-from automojo.interop.aspects import  AspectsCmd, DEFAULT_CMD_ASPECTS
-from automojo.credentials.sshcredential import SshCredential
+from ccai.interop.aspects import  AspectsCmd, DEFAULT_CMD_ASPECTS
+from ccai.credentials.sshcredential import SshCredential
 
-from automojo.protocols.ssh.sshbase import SshBase
-from automojo.protocols.ssh.sshconst import (
+from ccai.protocols.ssh.sshbase import SshBase
+from ccai.protocols.ssh.sshconst import (
     SshJumpParams
 )
-from automojo.protocols.ssh.sshsession import SshSession
-from automojo.protocols.ssh.sshtunnel import SshTunnel
+from ccai.protocols.ssh.sshsession import SshSession
+from ccai.protocols.ssh.sshtunnel import SshTunnel
 
 
 logger = getEnhancedLogger()

@@ -1,9 +1,9 @@
 import unittest
 import struct
 from unittest.mock import MagicMock
-from automojo.ssh.sftp import SFTPClient
-from automojo.ssh import constants
-from automojo.ssh.packet import Packet
+from ccai.ssh.sftp import SFTPClient
+from ccai.ssh import constants
+from ccai.ssh.packet import Packet
 
 class TestSFTP(unittest.TestCase):
     def setUp(self):
