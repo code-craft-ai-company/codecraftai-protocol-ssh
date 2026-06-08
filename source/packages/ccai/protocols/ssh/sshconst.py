@@ -8,7 +8,7 @@
 """
 
 __author__ = "Myron Walker"
-__copyright__ = "Copyright 2025, Automation Mojo LLC"
+__copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
@@ -16,7 +16,7 @@ import dataclasses
 import os
 import re
 
-from automojo.credentials.sshcredential import SshCredential
+from ccai.credentials.sshcredential import SshCredential
 
 DEFAULT_SSH_TIMEOUT = 300
 DEFAULT_SSH_RETRY_INTERVAL = .5

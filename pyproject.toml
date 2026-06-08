@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "automojo-protocols.ssh"
-description = "Automation Mojo - SSH Protocol"
+name = "codecraftai-protocols.ssh"
+description = "Code Craft AI - SSH Protocol"
 version = "0.0.1"
 authors = []
 readme = "README.rst"
@@ -13,13 +13,13 @@ classifiers = [
 keywords = [
     "python"
 ]
-packages = [{include="automojo", from="source/packages"}]
+packages = [{include="ccai", from="source/packages"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
 cryptography = "^46.0.5"
-automojo-errors = { git = "https://github.com/automationmojo/automojo-errors.git", branch = "main" }
-automojo-credentials = { git = "https://github.com/automationmojo/automojo-credentials.git", branch = "main" }
+codecraftai-errors = { git = "https://github.com/automationmojo/codecraftai-errors.git", branch = "main" }
+codecraftai-credentials = { git = "https://github.com/automationmojo/codecraftai-credentials.git", branch = "main" }
 
 [tool.poetry.group.dev.dependencies]
 

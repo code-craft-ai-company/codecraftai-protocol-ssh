@@ -1,7 +1,7 @@
 import unittest
 import struct
-from automojo.ssh.packet import Packet
-from automojo.ssh import constants
+from ccai.ssh.packet import Packet
+from ccai.ssh import constants
 
 class TestPacket(unittest.TestCase):
 

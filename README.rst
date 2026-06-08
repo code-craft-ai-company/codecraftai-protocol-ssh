@@ -1,8 +1,8 @@
 ==============================
-Automation Mojo Protocol SSH
+Code Craft AI Protocol SSH
 ==============================
 
-The ``automojo-protocol-ssh`` package is the dedicated SSH-protocol implementation for the automojo suite. It provides the building blocks (transport, session, packet handling, SFTP, tunnels, key and authentication handling, and a client/agent facade) used by any higher-level automojo package that needs to manage remote systems over SSH. It is consumed by ``automojo-interop``, ``automojo-landscaping`` (SSH-based coordinators), and the sysman packages that reach hosts over SSH.
+The ``codecraftai-protocol-ssh`` package is the dedicated SSH-protocol implementation for the ccai suite. It provides the building blocks (transport, session, packet handling, SFTP, tunnels, key and authentication handling, and a client/agent facade) used by any higher-level ccai package that needs to manage remote systems over SSH. It is consumed by ``codecraftai-interop``, ``codecraftai-landscaping`` (SSH-based coordinators), and the sysman packages that reach hosts over SSH.
 
 Highlights
 ==========
@@ -59,7 +59,7 @@ Run TestBase tests (when test roots are populated):
 
 .. code-block:: bash
 
-   testbase testing run --root source/testroots/testbase --includes=automojo --output=./.output
+   testbase testing run --root source/testroots/testbase --includes=ccai --output=./.output
 
 Standards and Conventions
 =========================

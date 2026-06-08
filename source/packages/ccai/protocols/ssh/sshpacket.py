@@ -117,7 +117,7 @@ class SshPacket:
 
     @classmethod
     def create_disconnect(cls, reason_code: int, description: str):
-        from automojo.protocols.ssh import sshconstants as constants
+        from ccai.protocols.ssh import sshconstants as constants
         pkt = cls(constants.SSH_MSG_DISCONNECT)
         pkt.add_uint32(reason_code)
         pkt.add_string(description)
@@ -126,7 +126,7 @@ class SshPacket:
 
     @classmethod
     def create_ignore(cls, data: bytes):
-        from automojo.protocols.ssh import sshconstants as constants
+        from ccai.protocols.ssh import sshconstants as constants
         pkt = cls(constants.SSH_MSG_IGNORE)
         pkt.add_string(data)
         return pkt

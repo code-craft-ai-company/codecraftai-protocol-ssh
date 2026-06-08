@@ -8,7 +8,7 @@
 """
 
 __author__ = "Myron Walker"
-__copyright__ = "Copyright 2025, Automation Mojo LLC"
+__copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
@@ -18,27 +18,27 @@ from types import TracebackType
 import socket
 import time
 
-from automojo.protocols.ssh.sshclient import SshClient
-from automojo.protocols.ssh.sshconnection import SshChannel
+from ccai.protocols.ssh.sshclient import SshClient
+from ccai.protocols.ssh.sshconnection import SshChannel
 
-from automojo.errors.exceptions import UnExpectedSessionClosureError
+from ccai.errors.exceptions import UnExpectedSessionClosureError
 
-from automojo.xmodules.xlogging.enhancedloggers import getEnhancedLogger
+from ccai.xmodules.xlogging.enhancedloggers import getEnhancedLogger
 
-from automojo.credentials.sshcredential import SshCredential
+from ccai.credentials.sshcredential import SshCredential
 
-from automojo.interop.aspects import AspectsCmd, DEFAULT_CMD_ASPECTS
-from automojo.protocols.ssh.sshconst import (
+from ccai.interop.aspects import AspectsCmd, DEFAULT_CMD_ASPECTS
+from ccai.protocols.ssh.sshconst import (
     SshJumpParams,
     DEFAULT_SSH_TIMEOUT,
     DEFAULT_SSH_RETRY_INTERVAL,
     INTERACTIVE_PROMPT
 )
-from automojo.protocols.ssh.sshhelpers import (
+from ccai.protocols.ssh.sshhelpers import (
     ssh_execute_command,
     ssh_execute_command_in_channel
 )
-from automojo.protocols.ssh.sshbase import SshBase
+from ccai.protocols.ssh.sshbase import SshBase
 
 logger = getEnhancedLogger()
 

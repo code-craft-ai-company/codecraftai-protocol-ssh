@@ -14,9 +14,9 @@ from cryptography.hazmat.primitives.asymmetric import dh, padding, rsa, ed25519
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
-from automojo.protocols.ssh import sshconstants
-from automojo.protocols.ssh.sshpacket import SshPacket
-from automojo.protocols.ssh.sshkeys import SshRSAKey, SshEd25519Key
+from ccai.protocols.ssh import sshconstants
+from ccai.protocols.ssh.sshpacket import SshPacket
+from ccai.protocols.ssh.sshkeys import SshRSAKey, SshEd25519Key
 
 # Setup logger
 logger = logging.getLogger(__name__)

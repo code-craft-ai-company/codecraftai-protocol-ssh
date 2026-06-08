@@ -5,10 +5,10 @@ import os
 import hashlib
 import struct
 from unittest.mock import MagicMock, patch
-from automojo.protocols.ssh.transport import Transport
-from automojo.protocols.ssh import constants
-from automojo.protocols.ssh.packet import Packet
-from automojo.protocols.ssh.keys import RSAKey
+from ccai.protocols.ssh.transport import Transport
+from ccai.protocols.ssh import constants
+from ccai.protocols.ssh.packet import Packet
+from ccai.protocols.ssh.keys import RSAKey
 
 from cryptography.hazmat.primitives import serialization, hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import rsa, dh, padding

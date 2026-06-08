@@ -119,7 +119,7 @@ class SshRSAKey(HostKey):
         
         numbers = self.public_key.public_numbers()
         
-        from automojo.protocols.ssh.sshpacket import SshPacket
+        from ccai.protocols.ssh.sshpacket import SshPacket
         pkt = SshPacket()
         pkt.add_string(self.get_name())
         pkt.add_mpint(numbers.e)
@@ -190,7 +190,7 @@ class SshEd25519Key(HostKey):
             format=serialization.PublicFormat.Raw
         )
         
-        from automojo.protocols.ssh.sshpacket import SshPacket
+        from ccai.protocols.ssh.sshpacket import SshPacket
         pkt = SshPacket()
         pkt.add_string(self.get_name())
         pkt.add_string(pub_bytes)

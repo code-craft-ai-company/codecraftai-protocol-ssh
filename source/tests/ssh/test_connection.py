@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import MagicMock
-from automojo.ssh.connection import Connection
-from automojo.ssh import constants
-from automojo.ssh.packet import Packet
+from ccai.ssh.connection import Connection
+from ccai.ssh import constants
+from ccai.ssh.packet import Packet
 
 class TestConnection(unittest.TestCase):
     def setUp(self):

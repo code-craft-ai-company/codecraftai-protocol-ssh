@@ -1,5 +1,5 @@
 import unittest
-from automojo.protocols.ssh.keys import RSAKey, Ed25519Key
+from ccai.protocols.ssh.keys import RSAKey, Ed25519Key
 
 class TestKeys(unittest.TestCase):
     def test_rsa_key(self):

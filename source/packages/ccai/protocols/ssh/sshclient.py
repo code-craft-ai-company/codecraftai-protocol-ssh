@@ -3,10 +3,10 @@ SSH Client Implementation
 """
 import socket
 import logging
-from automojo.protocols.ssh.sshtransport import SshTransport
-from automojo.protocols.ssh.sshconnection import SshConnection
-from automojo.protocols.ssh.sshsftp import SshSFTPClient
-from automojo.protocols.ssh.sshauth import SshAuthAgent
+from ccai.protocols.ssh.sshtransport import SshTransport
+from ccai.protocols.ssh.sshconnection import SshConnection
+from ccai.protocols.ssh.sshsftp import SshSFTPClient
+from ccai.protocols.ssh.sshauth import SshAuthAgent
 
 logger = logging.getLogger(__name__)
 

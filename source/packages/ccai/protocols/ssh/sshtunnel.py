@@ -8,7 +8,7 @@
 """
 
 __author__ = "Myron Walker"
-__copyright__ = "Copyright 2025, Automation Mojo LLC"
+__copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
@@ -18,10 +18,10 @@ import socket
 import select
 import threading
 
-from automojo.protocols.ssh.sshclient import SshClient
-from automojo.protocols.ssh.sshconnection import SshConnection, SshChannel
+from ccai.protocols.ssh.sshclient import SshClient
+from ccai.protocols.ssh.sshconnection import SshConnection, SshChannel
 
-from automojo.xmodules.xlogging.enhancedloggers import getEnhancedLogger
+from ccai.xmodules.xlogging.enhancedloggers import getEnhancedLogger
 
 logger = getEnhancedLogger()
 

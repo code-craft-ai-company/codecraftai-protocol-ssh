@@ -8,13 +8,13 @@
 """
 
 __author__ = "Myron Walker"
-__copyright__ = "Copyright 2025, Automation Mojo LLC"
+__copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
 from typing import Dict, Optional, Sequence, Union, Tuple
 
-from automojo.xmodules.xlogging.enhancedloggers import getEnhancedLogger
+from ccai.xmodules.xlogging.enhancedloggers import getEnhancedLogger
 import os
 import socket
 import stat
@@ -24,29 +24,29 @@ import time
 from datetime import datetime, timedelta
 from io import StringIO
 
-from automojo.protocols.ssh.sshclient import SshClient
-from automojo.protocols.ssh.sshkeys import SshRSAKey, SshEd25519Key
-from automojo.protocols.ssh.sshsftp import SshSFTPClient
-from automojo.protocols.ssh.sshconnection import SshChannel
+from ccai.protocols.ssh.sshclient import SshClient
+from ccai.protocols.ssh.sshkeys import SshRSAKey, SshEd25519Key
+from ccai.protocols.ssh.sshsftp import SshSFTPClient
+from ccai.protocols.ssh.sshconnection import SshChannel
 
-from automojo.waiting.waitmodel import TimeoutContext
+from ccai.waiting.waitmodel import TimeoutContext
 
-from automojo.errors.exceptions import ConfigurationError, AbstractMethodError, SemanticError
+from ccai.errors.exceptions import ConfigurationError, AbstractMethodError, SemanticError
 
-from automojo.interop.aspects import ActionPattern, AspectsCmd, LoggingPattern, DEFAULT_CMD_ASPECTS
-from automojo.credentials.sshcredential import SshCredential
-from automojo.interop.interfaces.isystemcontext import ISystemContext
-from automojo.xmodules.xformatting import indent_lines
-from automojo.xmodules.xlogging.monitoredscope import MonitoredScope
+from ccai.interop.aspects import ActionPattern, AspectsCmd, LoggingPattern, DEFAULT_CMD_ASPECTS
+from ccai.credentials.sshcredential import SshCredential
+from ccai.interop.interfaces.isystemcontext import ISystemContext
+from ccai.xmodules.xformatting import indent_lines
+from ccai.xmodules.xlogging.monitoredscope import MonitoredScope
 
-from automojo.protocols.ssh.sshconst import (
+from ccai.protocols.ssh.sshconst import (
     SshJumpParams,
     DEFAULT_SSH_TIMEOUT,
     DEFAULT_SSH_RETRY_INTERVAL,
     TEMPLATE_COMMAND_FAILURE,
     TEMPLATE_COMMAND_SUCCESS
 )
-from automojo.protocols.ssh.sshhelpers import (
+from ccai.protocols.ssh.sshhelpers import (
     primitive_directory_exists,
     primitive_file_exists,
     primitive_file_pull,
