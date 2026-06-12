@@ -353,7 +353,7 @@ class SshSession(SshBase):
         errmsg = "Session closed due to reboot."
         raise UnExpectedSessionClosureError(errmsg)
 
-    def run_cmd(self, command: str, exp_status: Union[int, Sequence]=0, pty_params: dict = None, aspects: Optional[AspectsCmd] = None) -> Tuple[int, str, str]:
+    def run_cmd(self, command: str, exp_status: Union[int, Sequence]=0, user: Optional[str] = None, pty_params: dict = None, aspects: Optional[AspectsCmd] = None) -> Tuple[int, str, str]:
         """
             Runs a command on the designated host using the current session SSH session and client.
 

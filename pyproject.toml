@@ -1,13 +1,13 @@
 [tool.poetry]
-name = "codecraftai-protocols.ssh"
+name = "codecraftai-protocol-ssh"
 description = "Code Craft AI - SSH Protocol"
 version = "0.0.1"
-authors = []
+authors = ["Myron Walker <myron.walker@gmail.com>"]
 readme = "README.rst"
-license = "LICENSE.txt"
+license = "LicenseRef-CodeCraftAI-Dual-License"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Operating System :: POSIX"
 ]
 keywords = [
@@ -20,6 +20,9 @@ python = ">=3.10,<4.0"
 cryptography = "^46.0.5"
 codecraftai-errors = { git = "https://github.com/automationmojo/codecraftai-errors.git", branch = "main" }
 codecraftai-credentials = { git = "https://github.com/automationmojo/codecraftai-credentials.git", branch = "main" }
+codecraftai-interop = { git = "https://github.com/automationmojo/codecraftai-interop.git", branch = "main" }
+codecraftai-waiting = { git = "https://github.com/automationmojo/codecraftai-waiting.git", branch = "main" }
+codecraftai-xmodules = { git = "https://github.com/automationmojo/codecraftai-xmodules.git", branch = "main" }
 
 [tool.poetry.group.dev.dependencies]
 

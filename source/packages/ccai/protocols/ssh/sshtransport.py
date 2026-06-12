@@ -37,7 +37,7 @@ class SshTransport(threading.Thread):
         
         # Versions
         self.remote_version = None
-        self.local_version = constants.MSG_STR_VERSION
+        self.local_version = sshconstants.MSG_STR_VERSION
         
         # State
         self.session_id = None

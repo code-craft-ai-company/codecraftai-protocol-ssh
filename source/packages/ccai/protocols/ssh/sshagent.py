@@ -140,7 +140,7 @@ class SshAgent(SshBase):
         reboot_cmd = 'reboot'
         try:
             status, stdout, stderr = self.run_cmd(reboot_cmd, aspects=aspects)
-        except (ConnectionError, paramiko.SSHException, socket.error, EOFError) as e:
+        except (ConnectionError, socket.error, EOFError) as e:
             # We might see a connection dropout exception here during reboot, which is expected
             logger.debug(f"Expected connection error during reboot: {e}")
         except KeyboardInterrupt:
