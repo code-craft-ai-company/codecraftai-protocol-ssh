@@ -17,7 +17,7 @@ packages = [{include="ccai", from="source/packages"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-cryptography = "^46.0.5"
+cryptography = "^45.0.5"
 codecraftai-errors = { git = "https://github.com/automationmojo/codecraftai-errors.git", branch = "main" }
 codecraftai-credentials = { git = "https://github.com/automationmojo/codecraftai-credentials.git", branch = "main" }
 codecraftai-interop = { git = "https://github.com/automationmojo/codecraftai-interop.git", branch = "main" }
