@@ -68,6 +68,12 @@ class SshPacket:
     def add_byte(self, b: int):
         self.payload.append(b & 0xFF)
 
+    def add_bytes(self, data: bytes):
+        """
+        Append raw bytes with no length prefix (e.g. the KEXINIT cookie).
+        """
+        self.payload.extend(data)
+
     def add_boolean(self, b: bool):
         self.add_byte(1 if b else 0)
 

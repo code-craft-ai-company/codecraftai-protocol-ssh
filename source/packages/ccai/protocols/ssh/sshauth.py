@@ -22,13 +22,35 @@ class SshAuthAgent:
         self.auth_methods = []
         self.authenticated = False
         self.event = threading.Event()
+        self.service_accepted = threading.Event()
         self.last_exception = None
+
+    def request_userauth_service(self):
+        """
+        Request the 'ssh-userauth' service and block until the server accepts it.
+
+        RFC 4252 requires the client to send SSH_MSG_SERVICE_REQUEST for
+        'ssh-userauth' and receive SSH_MSG_SERVICE_ACCEPT before any
+        SSH_MSG_USERAUTH_REQUEST. This is sent once per connection.
+        """
+        if self.service_accepted.is_set():
+            return
+
+        pkt = SshPacket(sshconstants.SSH_MSG_SERVICE_REQUEST)
+        pkt.add_string("ssh-userauth")
+        self.transport.send_packet(pkt)
+
+        accepted = self.service_accepted.wait(timeout=30)
+        if not accepted:
+            raise SshAuthError("Timed out waiting for SERVICE_ACCEPT (ssh-userauth)")
+        return
 
     def authenticate_none(self, username: str):
         """
         Attempt 'none' authentication to get list of allowed methods.
         """
         self.username = username
+        self.request_userauth_service()
         self._send_auth_request("none")
         self._wait_for_response()
         return self.auth_methods
@@ -38,31 +60,36 @@ class SshAuthAgent:
         Attempt password authentication.
         """
         self.username = username
+        self.request_userauth_service()
         self._send_auth_request("password", password=password)
         self._wait_for_response()
-        
+        return
+
     def _send_auth_request(self, method: str, password: str = None):
         pkt = SshPacket(sshconstants.SSH_MSG_USERAUTH_REQUEST)
         pkt.add_string(self.username)
         pkt.add_string(self.service)
         pkt.add_string(method)
-        
+
         if method == "password":
             pkt.add_boolean(False) # Change password?
             pkt.add_string(password)
-        
+
         self.event.clear()
         self.transport.send_packet(pkt)
+        return
 
     def dispatch_message(self, packet: SshPacket):
         """
-        Called by Transport when an auth-related packet receives.
+        Called by the transport when an auth-related packet is received.
         """
         if not packet.payload:
             return
-            
+
         msg_id = packet.get_byte()
-        if msg_id == sshconstants.SSH_MSG_USERAUTH_SUCCESS:
+        if msg_id == sshconstants.SSH_MSG_SERVICE_ACCEPT:
+            self.service_accepted.set()
+        elif msg_id == sshconstants.SSH_MSG_USERAUTH_SUCCESS:
             self.authenticated = True
             self.event.set()
         elif msg_id == sshconstants.SSH_MSG_USERAUTH_FAILURE:
@@ -78,6 +105,7 @@ class SshAuthAgent:
             logger.info(f"Auth Banner: {banner}")
         else:
             logger.warning(f"Unknown auth packet: {msg_id}")
+        return
 
     def _wait_for_response(self):
         self.event.wait(timeout=30)
@@ -87,3 +115,4 @@ class SshAuthAgent:
              if self.last_exception:
                  raise self.last_exception
              raise SshAuthError("Authentication failed")
+        return

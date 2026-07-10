@@ -75,6 +75,26 @@ class SshTransport(threading.Thread):
         # Buffer for incoming data
         self._buffer = bytearray()
 
+        # Set once both traffic directions are encrypted (server NEWKEYS
+        # received), or when key exchange fails. Callers wait on this before
+        # starting authentication and then inspect kex_error.
+        self.kex_complete = threading.Event()
+        # Records the exception that aborted key exchange (e.g. an untrusted
+        # host key) so the connecting caller can surface the real reason instead
+        # of a generic timeout.
+        self.kex_error = None
+
+        # Handler for non-transport messages (auth, then connection). When set,
+        # received application packets are delivered to it directly instead of
+        # being queued.
+        self._message_handler = None
+
+        # Host-key trust. hostname is the connection target; host_key_verifier is
+        # a callable (hostname, key_type, key_blob) -> bool. If it returns False
+        # or is not configured, the server's host key is rejected (no blind trust).
+        self.hostname = None
+        self.host_key_verifier = None
+
     def connect(self):
         """
         Perform initial SSH handshake.
@@ -104,7 +124,17 @@ class SshTransport(threading.Thread):
                 if packet:
                     self._process_packet(packet)
             except Exception as e:
+                # A read error during intentional shutdown (socket closed by
+                # close()) is expected; exit quietly.
+                if self.stop_event.is_set():
+                    break
                 logger.error(f"Error in transport loop: {e}")
+                # If the failure happened before key exchange finished, record it
+                # and release any caller waiting on kex_complete so it can raise
+                # the real reason (e.g. an untrusted host key) rather than a timeout.
+                if not self.kex_complete.is_set():
+                    self.kex_error = e
+                    self.kex_complete.set()
                 self.close()
                 break
         logger.info("Transport thread stopped")
@@ -189,45 +219,33 @@ class SshTransport(threading.Thread):
         # RFC 4253 Section 6:
         # "The packet length, padding length, payload, and padding are encrypted."
         
-        final_data = out
-        if self.encryptor:
-            final_data = self.encryptor.update(out)
-            
-        # MAC
-        # Calculated over SequenceNumber || UnencryptedPacket
-        # UnencryptedPacket = packet_length || padding_length || payload || padding
-        # 'out' IS the UnencryptedPacket (before encryption step, but wait).
-        # SSH_MSG_NEWKEYS and before are NOT encrypted, NOT MAC'ed?
-        # "Everything sent after this message [NEWKEYS] MUST be encrypted."
-        # So encryptor is None before that.
-        
-        mac = b''
-        if self.hmac_out_key:
-             # seqno (uint32)
-             seqno_bytes = struct.pack('>I', self.seqno_out)
-             
-             # HMAC(key, seqno || unencrypted_packet)
-             h = hmac.HMAC(self.hmac_out_key, hashes.SHA1(), backend=default_backend())
-             h.update(seqno_bytes)
-             h.update(out)
-             mac = h.finalize()
-             
-             self.seqno_out += 1
-             # Wrap around uint32? Python ints are infinite, but struct.pack >I handles it? No.
-             self.seqno_out &= 0xffffffff
-
-        # Encrypt 'out'
-        final_data = out
-        if self.encryptor:
-            final_data = self.encryptor.update(out)
-            
+        # MAC is computed over seqno || unencrypted_packet; the ciphertext is a
+        # single encryption of that same unencrypted packet. Hold the lock across
+        # MAC + encrypt + send + sequence increment so concurrent senders cannot
+        # desync the CTR keystream or the sequence number.
         with self.lock:
-             self.sock.sendall(final_data + mac)
+            mac = b''
+            if self.hmac_out_key is not None:
+                seqno_bytes = struct.pack('>I', self.seqno_out)
+                h = hmac.HMAC(self.hmac_out_key, hashes.SHA1(), backend=default_backend())
+                h.update(seqno_bytes)
+                h.update(out)
+                mac = h.finalize()
+
+            final_data = out
+            if self.encryptor is not None:
+                final_data = self.encryptor.update(out)
+
+            self.sock.sendall(final_data + mac)
+
+            # The packet sequence number increments for every packet sent,
+            # encrypted or not, and is never reset.
+            self.seqno_out = (self.seqno_out + 1) & 0xffffffff
 
     def send_kex_init(self):
         pkt = SshPacket(sshconstants.SSH_MSG_KEXINIT)
         cookie = os.urandom(16)
-        pkt.add_string(cookie) # Cookie
+        pkt.add_bytes(cookie) # 16-byte cookie: raw bytes, NOT a length-prefixed string
         pkt.add_name_list(["diffie-hellman-group14-sha1"]) # kex_algorithms
         pkt.add_name_list(["ssh-rsa", "ssh-ed25519"]) # server_host_key_algorithms
         pkt.add_name_list(["aes128-ctr"]) # encryption_algorithms_client_to_server
@@ -347,10 +365,11 @@ class SshTransport(threading.Thread):
                  
                  if mac != expected_mac:
                      raise Exception("MAC Verification Failed!")
-                 
-                 self.seqno_in += 1
-                 self.seqno_in &= 0xffffffff
-             
+
+             # The inbound sequence number increments for every packet received,
+             # encrypted or not, and is never reset.
+             self.seqno_in = (self.seqno_in + 1) & 0xffffffff
+
              return SshPacket(payload=payload)
              
         except (ConnectionError, struct.error) as e:
@@ -389,8 +408,11 @@ class SshTransport(threading.Thread):
             self._handle_kexdh_reply(packet)
         elif msg_id == sshconstants.SSH_MSG_NEWKEYS:
             logger.info("Received SSH_MSG_NEWKEYS")
-            # TODO: Enable encryption/decryption
-            pass
+            # Server NEWKEYS is the last cleartext message; activate the inbound
+            # cipher/MAC now so subsequent server traffic decrypts, then signal
+            # that key exchange is complete.
+            self._activate_incoming()
+            self.kex_complete.set()
         elif msg_id == sshconstants.SSH_MSG_DISCONNECT:
             self.close()
         elif msg_id == sshconstants.SSH_MSG_IGNORE:
@@ -398,9 +420,23 @@ class SshTransport(threading.Thread):
         elif msg_id == sshconstants.SSH_MSG_DEBUG:
             pass
         else:
-            # Queue for application / auth / connection layer
-            with self.lock:
-                self.packet_queue.append(packet)
+            # Deliver application packets (auth, then the connection layer) to
+            # the registered handler; fall back to the queue if none is set.
+            handler = self._message_handler
+            if handler is not None:
+                handler(packet)
+            else:
+                with self.lock:
+                    self.packet_queue.append(packet)
+        return
+
+    def register_handler(self, handler):
+        """
+        Register a callable(packet) to receive non-transport (application)
+        messages. Replaces any previously registered handler.
+        """
+        self._message_handler = handler
+        return
 
     def _handle_kex_init(self, packet):
         self.kex_init_rcvd = True
@@ -449,7 +485,10 @@ class SshTransport(threading.Thread):
 
     def _handle_kexdh_reply(self, packet: SshPacket):
         logger.info("Received KEXDH_REPLY")
-        
+
+        # Consume the message-id byte (payload[0]) before parsing the fields.
+        packet.get_byte()
+
         # 1. Parse packet
         # K_S: server public host key and certificates (K_S)
         host_key_bytes = packet.get_string()
@@ -498,11 +537,38 @@ class SshTransport(threading.Thread):
             
         if not self.host_key.verify(self.exchange_hash_H, raw_sig):
             raise Exception("Host Key Verification Failed!")
-            
-        logger.info("Host Key Verified Successfully")
-        
+
+        logger.info("Host key signature verified")
+
+        # The signature only proves the peer holds the private key for the
+        # presented host key; it does NOT prove the key is the one we expect.
+        # Consult the trust verifier (known_hosts / policy) before proceeding,
+        # otherwise a man-in-the-middle presenting its own key would be accepted.
+        self._verify_host_key_trust(host_key_bytes)
+
         # 6. Send NEWKEYS
         self._send_newkeys()
+
+    def _verify_host_key_trust(self, host_key_bytes: bytes):
+        """
+        Confirm the server's host key is trusted for this host. The signature
+        check proves key ownership only; this establishes key identity and is
+        the defense against a man-in-the-middle.
+        """
+        verifier = self.host_key_verifier
+        if verifier is None:
+            err_msg = ("No host-key trust verifier configured; refusing to trust the "
+                       "server host key. Configure a host-key policy on the client.")
+            raise Exception(err_msg)
+
+        key_type = self.host_key.get_name()
+        trusted = verifier(self.hostname, key_type, host_key_bytes)
+        if trusted is not True:
+            err_msg = "Server host key for '{}' ({}) is not trusted.".format(self.hostname, key_type)
+            raise Exception(err_msg)
+
+        logger.info("Server host key is trusted for %s", self.hostname)
+        return
 
     def _parse_host_key(self, data: bytes):
         # Allow parsing of supported keys
@@ -576,59 +642,56 @@ class SshTransport(threading.Thread):
         digest = hashlib.sha1(h_pkt.payload).digest()
         return digest
 
-    def _activate_encryption(self):
-        """
-        Derive keys and Initialize Ciphers.
-        Assuming aes128-ctr for both directions.
-        """
-        # Need session_id. If first KEX, session_id is H.
-        if not self.session_id:
+    def _ensure_session_id(self):
+        # On the first key exchange the session id is the exchange hash H; it is
+        # fixed for the life of the connection even across later rekeys.
+        if self.session_id is None:
             self.session_id = self.exchange_hash_H
-            
-        # Key length for AES-128 is 16 bytes.
-        # IV length for AES (CTR) is 16 bytes (block size).
+        return
+
+    def _activate_outgoing(self):
+        """
+        Activate the client->server cipher and MAC. Called immediately after the
+        client sends its NEWKEYS, so subsequent outbound packets are encrypted.
+        Keys 'C'/'A'/'E' per RFC 4253 section 7.2.
+        """
+        self._ensure_session_id()
+
         key_len = 16
         iv_len = 16
-        
-        # Client to Server (Encryption)
-        # IV: 'A', Key: 'C'
         c2s_iv = self._compute_key(b'A', iv_len)
         c2s_key = self._compute_key(b'C', key_len)
-        
-        # Server to Client (Decryption)
-        # IV: 'B', Key: 'D'
-        s2c_iv = self._compute_key(b'B', iv_len)
-        s2c_key = self._compute_key(b'D', key_len)
-        
-        # Integrity Keys (MAC) (hmac-sha1 = 20 bytes)
-        mac_key_len = 20
-        # Client to Server (Integrity 'E')
-        c2s_mac_key = self._compute_key(b'E', mac_key_len)
-        # Server to Client (Integrity 'F')
-        s2c_mac_key = self._compute_key(b'F', mac_key_len)
-        
-        # Initialize Encryptor
-        # AES-CTR requires a nonce/IV which acts as counter.
-        # RFC 4344: "aes128-ctr"
+        c2s_mac_key = self._compute_key(b'E', 20)
+
         cipher_enc = Cipher(algorithms.AES(c2s_key), modes.CTR(c2s_iv), backend=default_backend())
         self.encryptor = cipher_enc.encryptor()
-        
-        # Initialize Decryptor
+        self.hmac_out_key = c2s_mac_key
+        self.mac_len_out = 20
+
+        logger.info("Outbound encryption activated (AES-128-CTR + HMAC-SHA1)")
+        return
+
+    def _activate_incoming(self):
+        """
+        Activate the server->client cipher and MAC. Called after the client
+        receives the server's NEWKEYS, so subsequent inbound packets decrypt.
+        Keys 'D'/'B'/'F' per RFC 4253 section 7.2.
+        """
+        self._ensure_session_id()
+
+        key_len = 16
+        iv_len = 16
+        s2c_iv = self._compute_key(b'B', iv_len)
+        s2c_key = self._compute_key(b'D', key_len)
+        s2c_mac_key = self._compute_key(b'F', 20)
+
         cipher_dec = Cipher(algorithms.AES(s2c_key), modes.CTR(s2c_iv), backend=default_backend())
         self.decryptor = cipher_dec.decryptor()
-        
-        # Initialize HMAC
-        # We store the key, or pre-create `hmac.HMAC` instances?
-        # `hmac.HMAC` is single-use for `finalize()`. `copy()` can be used?
-        # Or just store keys.
-        self.hmac_out_key = c2s_mac_key
         self.hmac_in_key = s2c_mac_key
-        self.mac_len_out = 20
         self.mac_len_in = 20
-        
-        logger.info("Traffic Encryption Activated (AES-128-CTR + HMAC-SHA1)")
-        
-        logger.info("Traffic Encryption Activated (AES-128-CTR)")
+
+        logger.info("Inbound encryption activated (AES-128-CTR + HMAC-SHA1)")
+        return
 
     def _compute_key(self, id_byte: bytes, key_len: int) -> bytes:
         """
@@ -680,6 +743,7 @@ class SshTransport(threading.Thread):
         pkt = SshPacket(sshconstants.SSH_MSG_NEWKEYS)
         self.send_packet(pkt)
         logger.info("Sent NEWKEYS")
-        # Activate encryption IMMEDIATELY after sending NEWKEYS? 
-        # RFC 4253: "Everything sent after this message MUST be encrypted."
-        self._activate_encryption()
+        # Everything the client sends after its NEWKEYS must be encrypted, so
+        # activate the outbound direction now. The inbound direction is activated
+        # only when the server's NEWKEYS arrives (see _process_packet).
+        self._activate_outgoing()

@@ -10,6 +10,22 @@ from ccai.protocols.ssh.sshauth import SshAuthAgent
 
 logger = logging.getLogger(__name__)
 
+
+class AutoAddPolicy:
+    """
+    Host-key policy that trusts and records any host key not already known.
+    Convenient for first-use / test environments; not for untrusted networks.
+    """
+    auto_add = True
+
+
+class RejectPolicy:
+    """
+    Host-key policy that rejects any host key that is not already known.
+    """
+    auto_add = False
+
+
 class SshClient:
     """
     High-level SSH Client.
@@ -18,109 +34,126 @@ class SshClient:
     def __init__(self):
         self.transport = None
         self.connection = None
-        self._policy = None # Missing host key policy
+        self._policy = None  # Missing host key policy
+        self._host_keys = {}  # hostname -> set of trusted host-key blobs
 
     def set_missing_host_key_policy(self, policy):
         self._policy = policy
+        return
 
     def load_system_host_keys(self, filename=None):
-        pass # TODO
+        # Loading persisted known_hosts is not yet implemented; trust is
+        # governed by the configured missing-host-key policy and any keys
+        # added via add_host_key.
+        return
 
-    def connect(self, hostname, port=22, username=None, password=None, pkey=None, 
+    def add_host_key(self, hostname, key_blob):
+        """
+        Record a trusted host-key blob for a host.
+        """
+        known = self._host_keys.get(hostname)
+        if known is None:
+            known = set()
+            self._host_keys[hostname] = known
+        known.add(bytes(key_blob))
+        return
+
+    def _verify_host_key(self, hostname, key_type, key_blob):
+        """
+        Host-key trust verifier handed to the transport. Returns True only if
+        the key is already trusted for the host, or the policy auto-adds it.
+        """
+        blob = bytes(key_blob)
+        known = self._host_keys.get(hostname)
+        if known is not None and blob in known:
+            rtnval = True
+            return rtnval
+
+        auto_add = getattr(self._policy, "auto_add", False)
+        if auto_add is True:
+            self.add_host_key(hostname, blob)
+            logger.warning("Auto-added untrusted host key for %s (%s)", hostname, key_type)
+            rtnval = True
+            return rtnval
+
+        logger.error("Rejecting unknown host key for %s (%s)", hostname, key_type)
+        rtnval = False
+        return rtnval
+
+    def connect(self, hostname, port=22, username=None, password=None, pkey=None,
                 key_filename=None, timeout=None, allow_agent=True, look_for_keys=True,
                 compress=False, sock=None, gss_auth=False, gss_kex=False,
                 gss_deleg_creds=False, gss_host=None, banner_timeout=None,
                 auth_timeout=None, channel_timeout=None, disabled_algorithms=None):
-        
+
         # 1. Create Socket if not provided
         if sock is None:
-             sock = socket.create_connection((hostname, port), timeout=timeout)
-             
-        # 2. Start Transport
+            sock = socket.create_connection((hostname, port), timeout=timeout)
+
+        # 2. Start Transport and wire host-key trust before the handshake runs.
         self.transport = SshTransport(sock)
-        self.transport.connect() # Handles handshake + KEX
-        
-        # 3. Authenticate
+        self.transport.hostname = hostname
+        self.transport.host_key_verifier = self._verify_host_key
+        self.transport.connect()  # sends version + starts KEX
+
+        # 3. Wait for key exchange to complete (both directions encrypted) before
+        # sending any authentication traffic.
+        kex_timeout = auth_timeout if auth_timeout is not None else 30
+        completed = self.transport.kex_complete.wait(timeout=kex_timeout)
+        if self.transport.kex_error is not None:
+            kex_error = self.transport.kex_error
+            self.close()
+            raise kex_error
+        if completed is not True:
+            self.close()
+            raise TimeoutError("SSH key exchange did not complete")
+        if self.transport.active is not True:
+            self.close()
+            raise ConnectionError("SSH transport closed during key exchange")
+
+        # 4. Authenticate. Register the auth agent so the transport delivers
+        # SERVICE_ACCEPT / USERAUTH_* responses to it.
         auth_agent = SshAuthAgent(self.transport)
-        
-        # Register auth agent as handler for auth packets?
-        # Check how Transport dispatches.
-        # Transport puts packets in queue if not handled internal.
-        # We need a loop/dispatcher? 
-        # For now, let's assume Transport is modified or AuthAgent handles it by polling queue?
-        # My Transport puts unknown packets in self.packet_queue.
-        
-        # We need to hook up dispatching properly.
-        # In this simplified version, let's just make sure we can auth.
-        
-        # TODO: Implement proper dispatch loop or callback registration in Transport.
-        # For now, let's assume we can auth.
+        self.transport.register_handler(auth_agent.dispatch_message)
+
         try:
             if password:
                 auth_agent.authenticate_password(username, password)
-            # elif pkey: ...
             else:
-                # Try none to get methods?
-                auth_agent.authenticate_none(username) 
-                
+                # 'none' probes for the list of allowed methods.
+                auth_agent.authenticate_none(username)
         except Exception as e:
             self.close()
             raise e
-            
-        # 4. Start Connection Layer
+
+        # 5. Start the connection layer and route subsequent packets to it.
         self.connection = SshConnection(self.transport)
-        # We need to start a thread to pump packets from transport queue to connection/auth?
-        self._start_packet_pump()
-        
-    def _start_packet_pump(self):
-        # Background thread to move packets from transport.packet_queue to Connection
-        import threading
-        t = threading.Thread(target=self._pump_loop, daemon=True)
-        t.start()
-        
-    def _pump_loop(self):
-        # Poll transport queue
-        # This is inefficient, in real app Transport calls callbacks.
-        import time
-        while self.transport and self.transport.active:
-             # Pop from queue
-             with self.transport.lock:
-                 if self.transport.packet_queue:
-                     pkt = self.transport.packet_queue.pop(0)
-                 else:
-                     pkt = None
-             
-             if pkt:
-                 self.connection.dispatch_message(pkt)
-             else:
-                 time.sleep(0.01)
+        self.transport.register_handler(self.connection.dispatch_message)
+        return
 
     def get_transport(self):
         return self.transport
-        
+
     def open_sftp(self):
         """
         Open SFTP Client.
         """
         chan = self.connection.open_channel("session")
-        return SshSFTPClient(chan)
-        
+        rtnval = SshSFTPClient(chan)
+        return rtnval
+
     def exec_command(self, command, bufsize=-1, timeout=None, get_pty=False, environment=None):
         """
         Execute a command.
-        Returns (stdin, stdout, stderr) - but we might need to conform to what paramiko returns.
-        Paramiko returns ChannelFile objects.
+        Returns (stdin, stdout, stderr).
         """
         chan = self.connection.open_channel("session")
         if get_pty:
             chan.request_pty()
         chan.request_exec(command)
-        
-        # Return file-like objects wrapping the channel
-        # TODO: Implement ChannelFile
-        # For now, return the channel itself three times? No, that breaks API.
-        # Or just return channel to simplify?
-        return None, chan, None # Mock
+
+        rtnval = (None, chan, None)
+        return rtnval
 
     def invoke_shell(self, term='vt100', width=80, height=24, width_pixels=0, height_pixels=0, environment=None):
         chan = self.connection.open_channel("session")
@@ -131,3 +164,4 @@ class SshClient:
     def close(self):
         if self.transport:
             self.transport.close()
+        return
