@@ -388,7 +388,7 @@ codecraftai-errors = {git = "https://github.com/automationmojo/codecraftai-error
 type = "git"
 url = "https://github.com/automationmojo/codecraftai-credentials.git"
 reference = "main"
-resolved_reference = "72b2e1b570e7887a999d8038e894d5a561b89257"
+resolved_reference = "0c52375f9670cf6fbae22eb6ebf9a65182eeb0b9"
 
 [[package]]
 name = "codecraftai-errors"
@@ -500,7 +500,7 @@ rpyc = "^6.0.1"
 type = "git"
 url = "https://github.com/automationmojo/codecraftai-interop.git"
 reference = "main"
-resolved_reference = "1d05fc3467f76df00605158f7ce75551319ab55a"
+resolved_reference = "3e5c9e3d7083ceb129ca3d0626ce0ba940af4ab7"
 
 [[package]]
 name = "codecraftai-networking"
