@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "codecraftai-protocol-ssh"
 description = "Code Craft AI - SSH Protocol"
-version = "0.0.1"
+version = "1.0.0"
 authors = ["Myron Walker <myron.walker@gmail.com>"]
 readme = "README.rst"
 license = "LicenseRef-CodeCraftAI-Dual-License"
@@ -18,15 +18,21 @@ packages = [{include="ccai", from="source/packages"}]
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
 cryptography = "^45.0.5"
-codecraftai-errors = { git = "https://github.com/code-craft-ai-company/codecraftai-errors.git", branch = "main" }
-codecraftai-credentials = { git = "https://github.com/code-craft-ai-company/codecraftai-credentials.git", branch = "main" }
-codecraftai-interop = { git = "https://github.com/code-craft-ai-company/codecraftai-interop.git", branch = "main" }
-codecraftai-waiting = { git = "https://github.com/code-craft-ai-company/codecraftai-waiting.git", branch = "main" }
-codecraftai-xmodules = { git = "https://github.com/code-craft-ai-company/codecraftai-xmodules.git", branch = "main" }
+codecraftai-errors = { version = "<2.0.0", source = "codecraftai" }
+codecraftai-credentials = { version = "<2.0.0", source = "codecraftai" }
+codecraftai-interop = { version = "<2.0.0", source = "codecraftai" }
+codecraftai-waiting = { version = "<2.0.0", source = "codecraftai" }
+codecraftai-xmodules = { version = "<2.0.0", source = "codecraftai" }
 
 [tool.poetry.group.dev.dependencies]
 
 [tool.poetry.group.dbio.dependencies]
+
+
+[[tool.poetry.source]]
+name = "codecraftai"
+url = "https://code-craft.ai/licensed-repository/simple/"
+priority = "supplemental"
 
 [build-system]
 requires = ["poetry-core"]
