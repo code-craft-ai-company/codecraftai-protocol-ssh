@@ -144,7 +144,7 @@ class SshTransport(threading.Thread):
         self.stop_event.set()
         try:
             self.sock.close()
-        except:
+        except Exception:
             pass
 
     def _send_version(self):

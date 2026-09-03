@@ -231,7 +231,7 @@ class SshTunnel:
             try:
                 if self._local_socket:
                     self._local_socket.close()
-            except:
+            except Exception:
                 pass
 
     def _handle_connection(self, conn: socket.socket, connection: SshConnection):
@@ -255,12 +255,12 @@ class SshTunnel:
         finally:
             try:
                 conn.close()
-            except:
+            except Exception:
                 pass
             if chan is not None:
                 try:
                     chan.close()
-                except:
+                except Exception:
                     pass
 
     def _pump_channel(self, conn: socket.socket, chan: SshChannel):
