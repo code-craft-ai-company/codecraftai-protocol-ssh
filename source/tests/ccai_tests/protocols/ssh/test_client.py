@@ -27,6 +27,9 @@ class TestSshClient(unittest.TestCase):
         MockSocket.return_value = mock_sock
         
         mock_transport = MagicMock()
+        mock_transport.kex_error = None
+        mock_transport.active = True
+        mock_transport.kex_complete.wait.return_value = True
         MockTransport.return_value = mock_transport
         
         mock_conn = MagicMock()
@@ -41,7 +44,7 @@ class TestSshClient(unittest.TestCase):
         # Verify socket creation
         MockSocket.assert_called_with(('hostname', 22), timeout=None)
         
-        # Verify Transport creation and connection
+        # Verify SshTransport creation and connection
         MockTransport.assert_called_with(mock_sock)
         mock_transport.connect.assert_called_once()
         
@@ -49,26 +52,26 @@ class TestSshClient(unittest.TestCase):
         MockAuth.assert_called_with(mock_transport)
         mock_auth.authenticate_password.assert_called_with('user', 'password')
         
-        # Verify Connection layer
+        # Verify SshConnection layer
         MockConn.assert_called_with(mock_transport)
         self.assertIsNotNone(self.client.connection)
         
         # Stop thread loop
         mock_transport.active = False
 
-    def test_open_sftp(self):
-        # Mock connection and channel
+    @patch('ccai.protocols.ssh.sshclient.SshSFTPClient')
+    def test_open_sftp(self, MockSftp):
+        # A real SshSFTPClient would block reading the SFTP VERSION reply from the
+        # channel, so the class is patched and the wiring is what gets verified.
         self.client.connection = MagicMock()
         mock_chan = MagicMock()
         self.client.connection.open_channel.return_value = mock_chan
-        
-        # Call open_sftp
+        MockSftp.return_value = MagicMock(channel=mock_chan)
+
         sftp = self.client.open_sftp()
-        
-        # Verify channel opened
+
         self.client.connection.open_channel.assert_called_with('session')
-        
-        # Verify SFTP client returned (and uses channel)
+        MockSftp.assert_called_once_with(mock_chan)
         self.assertIsNotNone(sftp)
         self.assertEqual(sftp.channel, mock_chan)
 

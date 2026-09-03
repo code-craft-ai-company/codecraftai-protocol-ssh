@@ -166,7 +166,7 @@ class SshSFTPClient:
         except EOFError:
             pass
         finally:
-            self.close_handle(handle)
+            self.close(handle)
             
         return items
 

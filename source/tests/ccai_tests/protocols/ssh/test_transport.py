@@ -5,10 +5,10 @@ import os
 import hashlib
 import struct
 from unittest.mock import MagicMock, patch
-from ccai.protocols.ssh.transport import Transport
-from ccai.protocols.ssh import constants
-from ccai.protocols.ssh.packet import Packet
-from ccai.protocols.ssh.keys import RSAKey
+from ccai.protocols.ssh.sshtransport import SshTransport
+from ccai.protocols.ssh import sshconstants
+from ccai.protocols.ssh.sshpacket import SshPacket
+from ccai.protocols.ssh.sshkeys import SshRSAKey
 
 from cryptography.hazmat.primitives import serialization, hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import rsa, dh, padding
@@ -18,7 +18,7 @@ from cryptography.hazmat.backends import default_backend
 class TestTransport(unittest.TestCase):
     def setUp(self):
         self.mock_sock = MagicMock(spec=socket.socket)
-        self.transport = Transport(self.mock_sock)
+        self.transport = SshTransport(self.mock_sock)
 
     def test_version_exchange(self):
         # Setup mock to return a valid version string
@@ -30,7 +30,7 @@ class TestTransport(unittest.TestCase):
                 self.transport.connect()
         
         # Verify we sent our version
-        expected_send = f"{constants.MSG_STR_VERSION}\r\n".encode('utf-8')
+        expected_send = f"{sshconstants.MSG_STR_VERSION}\r\n".encode('utf-8')
         self.mock_sock.sendall.assert_called_with(expected_send)
         
         # Verify we parsed remote version
@@ -50,8 +50,8 @@ class TestTransport(unittest.TestCase):
         self.assertIsNotNone(self.transport.client_kex_init_payload)
         
         # 2. Receive Server KEXINIT
-        server_kex_init = Packet(constants.SSH_MSG_KEXINIT)
-        server_kex_init.add_string(os.urandom(16)) # Cookie
+        server_kex_init = SshPacket(sshconstants.SSH_MSG_KEXINIT)
+        server_kex_init.add_bytes(os.urandom(16)) # Cookie: 16 raw bytes
         server_kex_init.add_name_list(["diffie-hellman-group14-sha1"])
         server_kex_init.add_name_list(["ssh-rsa"]) 
         server_kex_init.add_name_list(["aes128-ctr"])
@@ -66,18 +66,22 @@ class TestTransport(unittest.TestCase):
         server_kex_init.add_uint32(0)
         
         # Simulate receiving it
-        # Pack to bytes to simulate wire reception if needed, but we pass Packet object to _handle_kex_init
+        # Pack to bytes to simulate wire reception if needed, but we pass SshPacket object to _handle_kex_init
         # We need to ensure payload allows accurate H calculation.
-        # Transport receives bytes, unpacks to Packet. Packet.payload contains the data.
-        # We constructed Packet with correct payload.
+        # SshTransport receives bytes, unpacks to SshPacket. SshPacket.payload contains the data.
+        # We constructed SshPacket with correct payload.
         
+        # Host-key trust is delegated to the client; accept the key for this test.
+        self.transport.hostname = 'srv'
+        self.transport.host_key_verifier = lambda hostname, key_type, blob: True
+
         # Capture sent KEXDH_INIT
         with patch.object(self.transport, 'send_packet') as mock_send:
             self.transport._handle_kex_init(server_kex_init)
             
             # Should have called send_packet with KEXDH_INIT
             call_args = mock_send.call_args[0][0]
-            self.assertEqual(call_args.message_id, constants.SSH_MSG_KEXDH_INIT)
+            self.assertEqual(call_args.message_id, sshconstants.SSH_MSG_KEXDH_INIT)
             
             # Client e should be set
             self.assertIsNotNone(self.transport.dh_public_key)
@@ -105,14 +109,14 @@ class TestTransport(unittest.TestCase):
         pub_numbers = server_host_pub.public_numbers()
         
         # Host Key Blob (ssh-rsa)
-        hk_pkt = Packet()
+        hk_pkt = SshPacket()
         hk_pkt.add_string("ssh-rsa")
         hk_pkt.add_mpint(pub_numbers.e)
         hk_pkt.add_mpint(pub_numbers.n)
         host_key_blob = hk_pkt.payload
         
         # Compute H for signature
-        h_pkt = Packet()
+        h_pkt = SshPacket()
         h_pkt.add_string(self.transport.local_version)
         h_pkt.add_string(self.transport.remote_version)
         h_pkt.add_string(self.transport.client_kex_init_payload)
@@ -128,26 +132,26 @@ class TestTransport(unittest.TestCase):
         signature = server_host_key.sign(digest, padding.PKCS1v15(), hashes.SHA1())
         
         # Signature Blob
-        sig_blob_pkt = Packet()
+        sig_blob_pkt = SshPacket()
         sig_blob_pkt.add_string("ssh-rsa")
         sig_blob_pkt.add_string(signature)
         sig_blob = sig_blob_pkt.payload
         
-        # 4. Construct Reply Packet
-        reply = Packet(constants.SSH_MSG_KEXDH_REPLY)
+        # 4. Construct Reply SshPacket
+        reply = SshPacket(sshconstants.SSH_MSG_KEXDH_REPLY)
         reply.add_string(host_key_blob)
         reply.add_mpint(server_f)
         reply.add_string(sig_blob)
         
-        # 5. Process Reply
-        self.transport._handle_kexdh_reply(reply)
+        # 5. Process Reply, shaped as it would arrive off the wire (message id first)
+        self.transport._handle_kexdh_reply(SshPacket(payload=reply.to_bytes()))
         
         # 6. Verify State
         self.assertIsNotNone(self.transport.shared_secret_K)
         self.assertEqual(self.transport.shared_secret_K, K_int)
         self.assertEqual(self.transport.exchange_hash_H, digest)
         self.assertIsNotNone(self.transport.host_key)
-        self.assertIsInstance(self.transport.host_key, RSAKey)
+        self.assertIsInstance(self.transport.host_key, SshRSAKey)
 
     def test_encryption_activation_and_traffic(self):
         # Setup dummy KEX state
@@ -156,9 +160,8 @@ class TestTransport(unittest.TestCase):
         self.transport.session_id = b'0'*20
         
         # Activate
-        self.transport._activate_encryption()
+        self.transport._activate_incoming()
         
-        self.assertIsNotNone(self.transport.encryptor)
         self.assertIsNotNone(self.transport.decryptor)
         
         # We want to test _read_packet (Decryption).
@@ -179,14 +182,14 @@ class TestTransport(unittest.TestCase):
         cipher = Cipher(algorithms.AES(s2c_key), modes.CTR(s2c_iv), backend=default_backend())
         server_encryptor = cipher.encryptor()
         
-        # Construct Plaintext Packet
+        # Construct Plaintext SshPacket
         payload = b"Hello Secure World"
-        pkt = Packet(constants.SSH_MSG_DEBUG)
+        pkt = SshPacket(sshconstants.SSH_MSG_DEBUG)
         pkt.add_boolean(True)
         pkt.add_string(payload)
         pkt.add_string("")
         
-        # Packet Packing Logic (same as send_packet but manual)
+        # SshPacket Packing Logic (same as send_packet but manual)
         payload_bytes = pkt.to_bytes()
         block_size = 16
         current_len = 4 + 1 + len(payload_bytes)
@@ -230,7 +233,7 @@ class TestTransport(unittest.TestCase):
         read_pkt = self.transport._read_packet()
         
         self.assertIsNotNone(read_pkt)
-        self.assertEqual(read_pkt.payload[0], constants.SSH_MSG_DEBUG)
+        self.assertEqual(read_pkt.payload[0], sshconstants.SSH_MSG_DEBUG)
         
         # Verify content
         read_pkt.get_byte() # Msg ID

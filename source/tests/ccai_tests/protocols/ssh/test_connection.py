@@ -1,13 +1,13 @@
 import unittest
 from unittest.mock import MagicMock
-from ccai.ssh.connection import Connection
-from ccai.ssh import constants
-from ccai.ssh.packet import Packet
+from ccai.protocols.ssh.sshconnection import SshConnection
+from ccai.protocols.ssh import sshconstants
+from ccai.protocols.ssh.sshpacket import SshPacket
 
 class TestConnection(unittest.TestCase):
     def setUp(self):
         self.mock_transport = MagicMock()
-        self.connection = Connection(self.mock_transport)
+        self.connection = SshConnection(self.mock_transport)
 
     def test_open_channel(self):
         chan = self.connection.open_channel()
@@ -17,12 +17,12 @@ class TestConnection(unittest.TestCase):
         # Verify packet sent
         self.mock_transport.send_packet.assert_called()
         args = self.mock_transport.send_packet.call_args[0][0]
-        self.assertEqual(args.message_id, constants.SSH_MSG_CHANNEL_OPEN)
+        self.assertEqual(args.message_id, sshconstants.SSH_MSG_CHANNEL_OPEN)
 
     def test_data_transfer(self):
         chan = self.connection.open_channel()
         # Simulate Confirmation
-        pkt = Packet(payload=bytes([constants.SSH_MSG_CHANNEL_OPEN_CONFIRMATION]))
+        pkt = SshPacket(payload=bytes([sshconstants.SSH_MSG_CHANNEL_OPEN_CONFIRMATION]))
         pkt.add_uint32(chan.local_id)
         pkt.add_uint32(100) # remote id
         pkt.add_uint32(1000) # window
@@ -34,7 +34,7 @@ class TestConnection(unittest.TestCase):
         self.assertTrue(chan.active)
         
         # Simulate receiving data
-        data_pkt = Packet(payload=bytes([constants.SSH_MSG_CHANNEL_DATA]))
+        data_pkt = SshPacket(payload=bytes([sshconstants.SSH_MSG_CHANNEL_DATA]))
         data_pkt.add_uint32(chan.local_id)
         data_pkt.add_string("hello")
         data_pkt._position = 0
@@ -57,7 +57,7 @@ class TestConnection(unittest.TestCase):
         # send_packet called twice (OPEN, then DATA)
         self.assertEqual(self.mock_transport.send_packet.call_count, 2)
         args = self.mock_transport.send_packet.call_args_list[1][0][0]
-        self.assertEqual(args.message_id, constants.SSH_MSG_CHANNEL_DATA)
+        self.assertEqual(args.message_id, sshconstants.SSH_MSG_CHANNEL_DATA)
         # Check remote ID
         # Payload starts with remote_id (uint32).
         args._position = 0
