@@ -26,7 +26,6 @@ from io import StringIO
 
 from ccai.protocols.ssh.sshclient import SshClient
 from ccai.protocols.ssh.sshkeys import SshRSAKey, SshEd25519Key
-from ccai.protocols.ssh.sshsftp import SshSFTPClient
 from ccai.protocols.ssh.sshconnection import SshChannel
 
 from ccai.waiting.waitmodel import TimeoutContext

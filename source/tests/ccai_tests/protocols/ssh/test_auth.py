@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
-from ccai.protocols.ssh.sshauth import SshAuthAgent, SshAuthError
+from ccai.protocols.ssh.sshauth import SshAuthAgent
 from ccai.protocols.ssh import sshconstants
 from ccai.protocols.ssh.sshpacket import SshPacket
 

@@ -95,7 +95,7 @@ class SshAuthAgent:
         elif msg_id == sshconstants.SSH_MSG_USERAUTH_FAILURE:
             # Parse allowed methods
             methods = packet.get_name_list()
-            partial = packet.get_boolean()
+            packet.get_boolean() # 'partial success' flag, read to consume the field; it is not used
             self.auth_methods = methods
             self.authenticated = False
             self.last_exception = SshAuthError(f"Authentication failed. Allowed: {methods}")

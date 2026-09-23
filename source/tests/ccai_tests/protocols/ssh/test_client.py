@@ -1,12 +1,8 @@
 
 import unittest
 from unittest.mock import MagicMock, patch
-import socket
 
 from ccai.protocols.ssh.sshclient import SshClient
-from ccai.protocols.ssh.sshtransport import SshTransport
-from ccai.protocols.ssh.sshconnection import SshConnection
-from ccai.protocols.ssh.sshauth import SshAuthAgent
 
 class TestSshClient(unittest.TestCase):
     def setUp(self):

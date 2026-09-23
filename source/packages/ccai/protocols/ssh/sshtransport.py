@@ -4,13 +4,8 @@ import logging
 import struct
 import os
 import hashlib
-from cryptography.hazmat.primitives import serialization, hashes, hmac
-from cryptography.hazmat.primitives.asymmetric import dh, padding, rsa, ed25519
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-
-from cryptography.hazmat.primitives import serialization, hashes, hmac
-from cryptography.hazmat.primitives.asymmetric import dh, padding, rsa, ed25519
+from cryptography.hazmat.primitives import hashes, hmac
+from cryptography.hazmat.primitives.asymmetric import dh, rsa, ed25519
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
@@ -145,6 +140,8 @@ class SshTransport(threading.Thread):
         try:
             self.sock.close()
         except Exception:
+            # Best-effort close; the socket may already be closed or broken because close() is also called
+            # from the error path of the transport loop.
             pass
 
     def _send_version(self):

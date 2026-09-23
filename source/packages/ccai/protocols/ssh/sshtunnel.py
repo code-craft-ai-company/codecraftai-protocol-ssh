@@ -12,7 +12,6 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
-from typing import Optional, Union
 from types import TracebackType
 import socket
 import select
@@ -232,6 +231,8 @@ class SshTunnel:
                 if self._local_socket:
                     self._local_socket.close()
             except Exception:
+                # Best-effort cleanup at forwarding thread exit; the listener is being discarded and there is
+                # no caller to report a close failure to.
                 pass
 
     def _handle_connection(self, conn: socket.socket, connection: SshConnection):
@@ -256,11 +257,13 @@ class SshTunnel:
             try:
                 conn.close()
             except Exception:
+                # Best-effort cleanup; a failure to close the local socket must not prevent the channel from being closed.
                 pass
             if chan is not None:
                 try:
                     chan.close()
                 except Exception:
+                    # Best-effort cleanup; the forwarded connection is finished and the channel is being discarded.
                     pass
 
     def _pump_channel(self, conn: socket.socket, chan: SshChannel):

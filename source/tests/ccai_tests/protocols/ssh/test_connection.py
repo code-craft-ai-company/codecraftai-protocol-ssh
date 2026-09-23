@@ -66,5 +66,52 @@ class TestConnection(unittest.TestCase):
         data = args.get_string()
         self.assertEqual(data, b"foo")
 
+    def _confirm_channel(self, chan, remote_max_packet: int):
+        pkt = SshPacket(payload=bytes([sshconstants.SSH_MSG_CHANNEL_OPEN_CONFIRMATION]))
+        pkt.add_uint32(chan.local_id)
+        pkt.add_uint32(100) # remote id
+        pkt.add_uint32(1024 * 1024) # window
+        pkt.add_uint32(remote_max_packet) # max packet
+        pkt._position = 0
+
+        self.connection.dispatch_message(pkt)
+        return
+
+    def _sent_data_chunk_sizes(self) -> list:
+        chunk_sizes = []
+        for call in self.mock_transport.send_packet.call_args_list:
+            sent_pkt = call[0][0]
+            if sent_pkt.message_id == sshconstants.SSH_MSG_CHANNEL_DATA:
+                sent_pkt._position = 0
+                sent_pkt.get_uint32() # remote id
+                chunk = sent_pkt.get_string()
+                chunk_sizes.append(len(chunk))
+        return chunk_sizes
+
+    def test_open_confirmation_records_peer_max_packet_size(self):
+        chan = self.connection.open_channel()
+        self._confirm_channel(chan, remote_max_packet=1000)
+
+        self.assertEqual(chan.remote_max_packet_size, 1000)
+        return
+
+    def test_send_chunks_by_peer_max_packet_size_when_smaller(self):
+        chan = self.connection.open_channel()
+        self._confirm_channel(chan, remote_max_packet=1000)
+
+        chan.send(b"x" * 2500)
+
+        self.assertEqual(self._sent_data_chunk_sizes(), [1000, 1000, 500])
+        return
+
+    def test_send_chunks_by_local_max_packet_size_when_peer_larger(self):
+        chan = self.connection.open_channel()
+        self._confirm_channel(chan, remote_max_packet=65536)
+
+        chan.send(b"x" * 40000)
+
+        self.assertEqual(self._sent_data_chunk_sizes(), [32768, 40000 - 32768])
+        return
+
 if __name__ == '__main__':
     unittest.main()

@@ -17,7 +17,6 @@ from typing import Dict, Optional, Sequence, Union, Tuple
 from ccai.xmodules.xlogging.enhancedloggers import getEnhancedLogger
 
 from ccai.protocols.ssh.sshclient import SshClient
-from ccai.protocols.ssh.sshconnection import SshChannel
 import socket
 import time
 
@@ -139,7 +138,7 @@ class SshAgent(SshBase):
         """
         reboot_cmd = 'reboot'
         try:
-            status, stdout, stderr = self.run_cmd(reboot_cmd, aspects=aspects)
+            self.run_cmd(reboot_cmd, aspects=aspects)
         except (ConnectionError, socket.error, EOFError) as e:
             # We might see a connection dropout exception here during reboot, which is expected
             logger.debug(f"Expected connection error during reboot: {e}")

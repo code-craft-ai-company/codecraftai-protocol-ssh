@@ -12,7 +12,7 @@ class TestKeys(unittest.TestCase):
         
         # Test export/import (partially, just export for now)
         pub_bytes = key.as_bytes()
-        self.assertTrue(len(pub_bytes) > 0)
+        self.assertGreater(len(pub_bytes), 0)
 
     def test_ed25519_key(self):
         key = SshEd25519Key()

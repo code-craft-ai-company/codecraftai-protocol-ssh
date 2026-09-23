@@ -1,5 +1,4 @@
 import unittest
-import struct
 from ccai.protocols.ssh.sshpacket import SshPacket
 from ccai.protocols.ssh import sshconstants
 

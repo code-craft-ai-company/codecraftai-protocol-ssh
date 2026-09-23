@@ -3,7 +3,6 @@ import struct
 from unittest.mock import MagicMock
 from ccai.protocols.ssh.sshsftp import SshSFTPClient
 from ccai.protocols.ssh import sshconstants
-from ccai.protocols.ssh.sshpacket import SshPacket
 
 class TestSFTP(unittest.TestCase):
     def setUp(self):
@@ -33,7 +32,7 @@ class TestSFTP(unittest.TestCase):
             response[4:]  # Rest
         ]
         
-        sftp = SshSFTPClient(self.mock_channel)
+        SshSFTPClient(self.mock_channel)
         
         # Verify INIT sent
         # Send call 0: INIT packet
@@ -73,7 +72,6 @@ class TestSFTP(unittest.TestCase):
         read_resp = struct.pack('>I', read_resp_len) + bytes([sshconstants.SSH_FXP_DATA]) + read_payload
         
         # Setup Close response: STATUS OK
-        status_payload = struct.pack('>I', 3) + struct.pack('>I', sshconstants.SSH_FX_OK)
         # Assuming simple status (no lang/msg) for test compactness, but spec says:
         # uint32 id, uint32 code, string message, string lang
         # update Status payload:

@@ -155,7 +155,7 @@ class SshSFTPClient:
                     count = pkt.get_uint32()
                     for _ in range(count):
                         filename = pkt.get_string().decode('utf-8')
-                        longname = pkt.get_string().decode('utf-8')
+                        pkt.get_string() # consume the 'longname' field; only the filename is listed
                         self._parse_attrs(pkt) # consume attrs
                         items.append(filename)
                 elif msg_id == sshconstants.SSH_FXP_STATUS:
@@ -164,6 +164,7 @@ class SshSFTPClient:
                 else:
                     raise SshSFTPError(f"Unexpected message {msg_id}")
         except EOFError:
+            # SSH_FX_EOF from READDIR marks the end of the directory listing; it is the normal loop exit.
             pass
         finally:
             self.close(handle)
@@ -273,6 +274,8 @@ class SshSFTPClient:
             return pkt.get_string()
         elif msg_id == sshconstants.SSH_FXP_STATUS:
             self._check_status(payload, req_id)
+            # A non-OK status raises above; an OK status carries no handle.
+            return None
         else:
             raise SshSFTPError(f"Unexpected message {msg_id}")
 

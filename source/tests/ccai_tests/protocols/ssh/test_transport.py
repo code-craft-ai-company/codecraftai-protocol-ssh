@@ -1,6 +1,5 @@
 import unittest
 import socket
-import threading
 import os
 import hashlib
 import struct
@@ -10,7 +9,7 @@ from ccai.protocols.ssh import sshconstants
 from ccai.protocols.ssh.sshpacket import SshPacket
 from ccai.protocols.ssh.sshkeys import SshRSAKey
 
-from cryptography.hazmat.primitives import serialization, hashes, hmac
+from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import rsa, dh, padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend

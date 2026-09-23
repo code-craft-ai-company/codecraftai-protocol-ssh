@@ -22,6 +22,9 @@ class SshChannel(threading.Thread):
         self.local_id = local_id
         self.remote_id = None
         self.max_packet_size = 32768
+        # The maximum packet size the peer will accept, from SSH_MSG_CHANNEL_OPEN_CONFIRMATION.
+        # RFC 4254 section 5.1: data sent to the peer must not exceed this size.
+        self.remote_max_packet_size = None
         self.window_size = 1024 * 1024
         self.active = False
         self.closed = False
@@ -36,10 +39,14 @@ class SshChannel(threading.Thread):
         if not self.active or self.closed:
             raise ConnectionError("Channel closed")
         
-        # Split into max_packet_size chunks
+        # Split into chunks no larger than the smaller of the local and the peer's
+        # maximum packet size (RFC 4254 section 5.1).
         # And respect window size (TODO)
-        
+
         chunk_size = self.max_packet_size
+        if self.remote_max_packet_size is not None and self.remote_max_packet_size < chunk_size:
+            chunk_size = self.remote_max_packet_size
+
         for i in range(0, len(data), chunk_size):
             chunk = data[i:i+chunk_size]
             pkt = SshPacket(sshconstants.SSH_MSG_CHANNEL_DATA)
@@ -190,6 +197,7 @@ class SshConnection:
                 if local_id in self.channels:
                     chan = self.channels[local_id]
                     chan.remote_id = remote_id
+                    chan.remote_max_packet_size = max_packet
                     chan.open()
                     
         elif msg_id == sshconstants.SSH_MSG_CHANNEL_DATA:
