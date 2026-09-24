@@ -128,6 +128,9 @@ class SshClient:
 
         # 5. Start the connection layer and route subsequent packets to it.
         self.connection = SshConnection(self.transport)
+        if channel_timeout is not None:
+            # As in paramiko, 'channel_timeout' bounds how long a channel open waits for the peer to confirm it.
+            self.connection.channel_timeout = channel_timeout
         self.transport.register_handler(self.connection.dispatch_message)
         return
 

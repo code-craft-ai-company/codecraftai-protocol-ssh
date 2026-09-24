@@ -1,8 +1,11 @@
 import unittest
 import struct
 from unittest.mock import MagicMock
+from ccai.protocols.ssh.sshconnection import SshConnection
 from ccai.protocols.ssh.sshsftp import SshSFTPClient
 from ccai.protocols.ssh import sshconstants
+
+from ccai_tests.protocols.ssh.fakepeertransport import FakePeerTransport, PEER_CHANNEL_BASE
 
 class TestSFTP(unittest.TestCase):
     def setUp(self):
@@ -157,6 +160,63 @@ class TestSFTP(unittest.TestCase):
         # Test Listdir
         items = sftp.listdir("/path")
         self.assertEqual(items, ["file1", "file2"])
+
+
+def sftp_message(msg_type: int, payload: bytes) -> bytes:
+    message = struct.pack('>I', 1 + len(payload)) + bytes([msg_type]) + payload
+    return message
+
+
+class TestSFTPOverChannel(unittest.TestCase):
+    """
+        Runs :class:`SshSFTPClient` over a real :class:`SshChannel`, so the SFTP framing depends on how
+        :meth:`SshChannel.recv` hands out the bytes of the channel's data packets.
+    """
+
+    def setUp(self):
+        self.transport = FakePeerTransport()
+        self.connection = SshConnection(self.transport)
+        self.transport.connection = self.connection
+        self.channel = self.connection.open_channel("session")
+        return
+
+    def test_replies_split_across_and_merged_within_channel_packets(self):
+        version_reply = sftp_message(sshconstants.SSH_FXP_VERSION, struct.pack('>I', 3))
+        handle_reply = sftp_message(sshconstants.SSH_FXP_HANDLE, struct.pack('>I', 1) + b'\x00\x00\x00\x07handle1')
+        data_reply = sftp_message(sshconstants.SSH_FXP_DATA, struct.pack('>I', 2) + b'\x00\x00\x00\x05hello')
+        status_payload = struct.pack('>I', 3) + struct.pack('>I', sshconstants.SSH_FX_OK) + b'\x00' * 8
+        status_reply = sftp_message(sshconstants.SSH_FXP_STATUS, status_payload)
+
+        stream = version_reply + handle_reply + data_reply + status_reply
+
+        # Cut the server's byte stream into channel data packets that split the first length prefix, merge the
+        # rest of VERSION, all of HANDLE and the head of DATA into one packet, and carry the rest in a third.
+        first_cut = 3
+        second_cut = len(version_reply) + len(handle_reply) + 7
+        packets = [stream[:first_cut], stream[first_cut:second_cut], stream[second_cut:]]
+        for packet_data in packets:
+            self.transport.dispatch_to_channel(sshconstants.SSH_MSG_CHANNEL_DATA, self.channel.local_id,
+                                               packet_data)
+
+        sftp = SshSFTPClient(self.channel)
+        handle = sftp.open("foo.txt")
+        data = sftp.read(handle, 0, 100)
+        sftp.close(handle)
+
+        self.assertEqual(handle, b"handle1")
+        self.assertEqual(data, b"hello")
+        self.assertFalse(self.channel.recv_ready(), "every byte of the replies should have been consumed")
+
+        # The subsystem request went out as an SSH string and the INIT request was framed on the channel.
+        requests = self.transport.sent_of_type(sshconstants.SSH_MSG_CHANNEL_REQUEST)
+        self.assertEqual(len(requests), 1)
+        requests[0]._position = 0
+        self.assertEqual(requests[0].get_uint32(), PEER_CHANNEL_BASE + self.channel.local_id)
+        self.assertEqual(requests[0].get_string(), b"subsystem")
+        self.assertTrue(requests[0].get_boolean())
+        self.assertEqual(requests[0].get_string(), b"sftp")
+        return
+
 
 if __name__ == '__main__':
     unittest.main()

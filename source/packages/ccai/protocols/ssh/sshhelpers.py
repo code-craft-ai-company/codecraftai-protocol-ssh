@@ -499,7 +499,8 @@ def ssh_execute_command(ssh_client: SshClient, command: str, pty_params=None,
                     send_size = avail_length
 
                 send_chunk = input[input_pos: input_pos + send_size]
-                sent_size = channel.send(send_chunk)
+                # Bounded by the aspects' inactivity timeout in case the peer's channel window is exhausted.
+                sent_size = channel.send(send_chunk, timeout=inactivity_timeout)
 
                 input_pos = input_pos + sent_size
 
@@ -569,7 +570,9 @@ def _ssh_execute_command_in_channel_imp(ssh_channel: SshChannel, command: str, r
     # Assuming ssh_channel.send() handles encoding if needed, but it usually takes bytes. 
     # sshconnection.Channel.send takes bytes.
     # command is str.
-    ssh_channel.send((command + "\n").encode('utf-8'))
+    command_bytes = (command + "\n").encode('utf-8')
+    # Bounded by the aspects' inactivity timeout in case the peer's channel window is exhausted.
+    ssh_channel.send(command_bytes, timeout=inactivity_timeout)
 
     stdout_pipe_timeout = 0
     stderr_pipe_timeout = 0
@@ -585,7 +588,9 @@ def _ssh_execute_command_in_channel_imp(ssh_channel: SshChannel, command: str, r
                  stdout_pipe_timeout += 1
 
         if stderr_pipe_timeout < 2:
-            rcv_data = ssh_channel.recv_stderr(chunk_size, timeout=read_timeout)
+            # Do not wait for stderr: an interactive channel has a pty, which merges stderr into stdout, so waiting
+            # would only delay every command by the read timeout.  Stderr that arrives later is drained below.
+            rcv_data = ssh_channel.recv_stderr(chunk_size, timeout=0)
             if rcv_data:
                 stderr_buffer.extend(rcv_data)
             else:
@@ -598,6 +603,12 @@ def _ssh_execute_command_in_channel_imp(ssh_channel: SshChannel, command: str, r
         if now_time > end_time:
             errmsg = "Timeout while running command={}".format(command)
             raise TimeoutError(errmsg)
+
+    # Collect any stderr that arrived while stdout was still being read.
+    rcv_data = ssh_channel.recv_stderr(chunk_size, timeout=0)
+    while len(rcv_data) > 0:
+        stderr_buffer.extend(rcv_data)
+        rcv_data = ssh_channel.recv_stderr(chunk_size, timeout=0)
 
     return stdout_buffer, stderr_buffer
 

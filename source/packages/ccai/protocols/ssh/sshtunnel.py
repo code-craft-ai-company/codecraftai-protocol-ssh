@@ -24,6 +24,16 @@ from ccai.xmodules.xlogging.enhancedloggers import getEnhancedLogger
 
 logger = getEnhancedLogger()
 
+# How often, in seconds, each direction of a forwarded connection wakes up to check whether the tunnel is
+# shutting down or the other direction has finished.
+PUMP_POLL_INTERVAL = 1.0
+
+# The number of bytes read from the local socket or the channel per forwarding step.
+PUMP_CHUNK_SIZE = 32768
+
+# How long, in seconds, a finished connection waits for its channel to socket forwarding thread to exit.
+PUMP_JOIN_TIMEOUT = 5.0
+
 
 class SshTunnel:
     """
@@ -165,6 +175,10 @@ class SshTunnel:
         self._local_socket.bind(('127.0.0.1', self._local_port))
         self._actual_local_port = self._local_socket.getsockname()[1]
         self._local_socket.listen(5)
+        # Closing a listening socket does not wake a thread blocked in accept() on every platform, so accept with
+        # a timeout and let the forwarding loop re-check for shutdown and a dead transport.  Accepted connections
+        # are still created in blocking mode.
+        self._local_socket.settimeout(PUMP_POLL_INTERVAL)
         
         # Mark as active
         self._active = True
@@ -212,7 +226,10 @@ class SshTunnel:
                         self._connection_threads.append(conn_thread)
                     
                     conn_thread.start()
-                    
+
+                except socket.timeout:
+                    # No connection within the poll interval; loop to re-check for shutdown.
+                    continue
                 except socket.error as e:
                     # Socket errors during accept() are expected when shutting down
                     if self._active:
@@ -244,10 +261,11 @@ class SshTunnel:
         """
         chan = None
         try:
+            # RFC 4254 section 7.2: the originator is the local client whose connection is being forwarded.
             chan = connection.open_channel(
                 "direct-tcpip",
-                (self._remote_host, self._remote_port),
-                conn.getsockname()
+                dest_addr=(self._remote_host, self._remote_port),
+                src_addr=conn.getpeername()
             )
 
             self._pump_channel(conn, chan)
@@ -269,25 +287,97 @@ class SshTunnel:
     def _pump_channel(self, conn: socket.socket, chan: SshChannel):
         """
             Forward data between a local socket connection and an SSH channel until one side closes.
-        """
-        sockets = [conn, chan]
 
-        while self._active:
-            read_ready, _, _ = select.select(sockets, [], [], 1.0)
-            if not read_ready:
+            An :class:`SshChannel` has no file descriptor, so it cannot be passed to ``select``.  The socket to
+            channel direction runs on this thread and waits on the socket with ``select``; the channel to socket
+            direction runs on a companion thread that blocks in :meth:`SshChannel.recv`, which is fed by the
+            transport thread.  Both directions check for tunnel shutdown every ``PUMP_POLL_INTERVAL`` seconds and
+            stop together as soon as either side closes.  When the peer only sends EOF (half-close, RFC 4254 section
+            5.3) the local client gets end-of-stream and can keep sending until it closes.
+
+            :param conn: The local client connection socket.
+            :param chan: The open ``direct-tcpip`` channel for the connection.
+        """
+        pump_done = threading.Event()
+
+        channel_reader = threading.Thread(
+            target=self._pump_channel_to_socket,
+            args=(conn, chan, pump_done),
+            daemon=True
+        )
+        channel_reader.start()
+
+        try:
+            self._pump_socket_to_channel(conn, chan, pump_done)
+        finally:
+            pump_done.set()
+            channel_reader.join(timeout=PUMP_JOIN_TIMEOUT)
+            if channel_reader.is_alive():
+                logger.warning("Channel to socket forwarding thread did not complete within timeout")
+
+        return
+
+    def _pump_socket_to_channel(self, conn: socket.socket, chan: SshChannel, pump_done: threading.Event):
+        """
+            Forward data from the local socket to the SSH channel until the local client closes its side, the
+            other direction finishes, or the tunnel shuts down.
+
+            :param conn: The local client connection socket.
+            :param chan: The channel to forward to.
+            :param pump_done: Set when either direction has finished.
+        """
+        while self._active is True and pump_done.is_set() is False and chan.closed is False:
+            read_ready, _, _ = select.select([conn], [], [], PUMP_POLL_INTERVAL)
+            if conn not in read_ready:
                 continue
 
-            if conn in read_ready:
-                data = conn.recv(1024)
-                if not data:
-                    break
-                chan.send(data)
+            data = conn.recv(PUMP_CHUNK_SIZE)
+            if len(data) == 0:
+                # The local client closed its side of the connection.
+                break
 
-            if chan in read_ready:
-                data = chan.recv(1024)
-                if not data:
+            chan.send(data)
+
+        return
+
+    def _pump_channel_to_socket(self, conn: socket.socket, chan: SshChannel, pump_done: threading.Event):
+        """
+            Forward data from the SSH channel to the local socket until the peer closes the channel, the other
+            direction finishes, or the tunnel shuts down.  Runs on its own thread.
+
+            :param conn: The local client connection socket.
+            :param chan: The channel to forward from.
+            :param pump_done: Set when either direction has finished; set by this method when it finishes, unless
+                              the peer only half-closed the channel.
+        """
+        finish_pump = True
+        try:
+            while self._active is True and pump_done.is_set() is False:
+                data = chan.recv(PUMP_CHUNK_SIZE, timeout=PUMP_POLL_INTERVAL)
+                if len(data) > 0:
+                    conn.sendall(data)
+                elif chan.closed is True or chan.eof_received is True:
+                    # Everything the peer sent has been forwarded; let the local client see end-of-stream now
+                    # instead of when the socket direction next polls.
+                    try:
+                        conn.shutdown(socket.SHUT_WR)
+                    except OSError as xcpt:
+                        logger.debug(f"Error shutting down the local socket at the end of the channel data: {xcpt}")
+
+                    if chan.closed is False:
+                        # Half-close: the peer sends no more data but still receives, so the socket direction
+                        # keeps forwarding until the local client or the peer closes.
+                        finish_pump = False
                     break
-                conn.sendall(data)
+                # Otherwise the receive timed out; loop to re-check for shutdown.
+        except OSError as xcpt:
+            # The local client went away while data was being written to it.
+            logger.debug(f"Local socket error while forwarding channel data: {xcpt}")
+        finally:
+            if finish_pump is True:
+                pump_done.set()
+
+        return
 
     def _cleanup_finished_threads(self):
         """

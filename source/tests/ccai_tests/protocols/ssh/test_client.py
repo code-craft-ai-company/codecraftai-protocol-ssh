@@ -55,6 +55,28 @@ class TestSshClient(unittest.TestCase):
         # Stop thread loop
         mock_transport.active = False
 
+    @patch('ccai.protocols.ssh.sshclient.socket.create_connection')
+    @patch('ccai.protocols.ssh.sshclient.SshTransport')
+    @patch('ccai.protocols.ssh.sshclient.SshConnection')
+    @patch('ccai.protocols.ssh.sshclient.SshAuthAgent')
+    def test_connect_applies_channel_timeout_to_channel_opens(self, MockAuth, MockConn, MockTransport, MockSocket):
+        mock_transport = MagicMock()
+        mock_transport.kex_error = None
+        mock_transport.active = True
+        mock_transport.kex_complete.wait.return_value = True
+        MockTransport.return_value = mock_transport
+
+        mock_conn = MagicMock()
+        MockConn.return_value = mock_conn
+
+        self.client.connect('hostname', username='user', password='password', channel_timeout=7.5)
+
+        # As in paramiko, 'channel_timeout' bounds how long a channel open waits for the peer.
+        self.assertEqual(mock_conn.channel_timeout, 7.5)
+
+        mock_transport.active = False
+        return
+
     @patch('ccai.protocols.ssh.sshclient.SshSFTPClient')
     def test_open_sftp(self, MockSftp):
         # A real SshSFTPClient would block reading the SFTP VERSION reply from the

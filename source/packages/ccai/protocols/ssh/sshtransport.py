@@ -134,6 +134,16 @@ class SshTransport(threading.Thread):
                 break
         logger.info("Transport thread stopped")
 
+    def is_active(self) -> bool:
+        """
+            Returns True while the transport is connected and its reader thread is processing packets.  Mirrors
+            ``paramiko.Transport.is_active``, which :class:`SshTunnel` uses to stop forwarding on a dead transport.
+
+            :returns: True if the transport is active, otherwise False.
+        """
+        active = self.active
+        return active
+
     def close(self):
         self.active = False
         self.stop_event.set()

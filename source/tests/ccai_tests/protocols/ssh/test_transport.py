@@ -19,6 +19,17 @@ class TestTransport(unittest.TestCase):
         self.mock_sock = MagicMock(spec=socket.socket)
         self.transport = SshTransport(self.mock_sock)
 
+    def test_is_active_tracks_connection_state(self):
+        # SshTunnel stops forwarding when is_active() reports a dead transport.
+        self.assertFalse(self.transport.is_active())
+
+        self.transport.active = True
+        self.assertTrue(self.transport.is_active())
+
+        self.transport.close()
+        self.assertFalse(self.transport.is_active())
+        return
+
     def test_version_exchange(self):
         # Setup mock to return a valid version string
         self.mock_sock.recv.side_effect = [b'S', b'S', b'H', b'-', b'2', b'.', b'0', b'-', b'O', b'p', b'e', b'n', b'S', b'S', b'H', b'\n']

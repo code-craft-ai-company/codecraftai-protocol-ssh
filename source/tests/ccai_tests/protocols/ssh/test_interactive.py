@@ -7,9 +7,39 @@ from ccai.protocols.ssh.sshpacket import SshPacket
 class TestInteractive(unittest.TestCase):
     def setUp(self):
         self.mock_transport = MagicMock()
+        self.mock_transport.active = True
+        # open_channel() waits for the peer, so answer SSH_MSG_CHANNEL_OPEN with a confirmation.
+        self.mock_transport.send_packet.side_effect = self._confirm_channel_open
         self.connection = SshConnection(self.mock_transport)
         self.channel = self.connection.open_channel()
         self.channel.remote_id = 100 # Mock remote ID
+
+    def _confirm_channel_open(self, pkt):
+        if pkt.message_id == sshconstants.SSH_MSG_CHANNEL_OPEN:
+            pkt._position = 0
+            pkt.get_string() # channel type
+            local_id = pkt.get_uint32()
+
+            confirm = SshPacket(payload=bytes([sshconstants.SSH_MSG_CHANNEL_OPEN_CONFIRMATION]))
+            confirm.add_uint32(local_id)
+            confirm.add_uint32(100) # remote id
+            confirm.add_uint32(1024 * 1024) # window
+            confirm.add_uint32(32768) # max packet
+            confirm._position = 0
+            self.connection.dispatch_message(confirm)
+
+        elif pkt.message_id == sshconstants.SSH_MSG_CHANNEL_REQUEST:
+            # Requests that want a reply wait for the peer's answer; accept them.
+            pkt._position = 0
+            pkt.get_uint32() # recipient channel
+            pkt.get_string() # request type
+            want_reply = pkt.get_boolean()
+            if want_reply is True:
+                success = SshPacket(payload=bytes([sshconstants.SSH_MSG_CHANNEL_SUCCESS]))
+                success.add_uint32(self.channel.local_id)
+                success._position = 0
+                self.connection.dispatch_message(success)
+        return
 
     def test_encode_terminal_modes(self):
         modes = {
