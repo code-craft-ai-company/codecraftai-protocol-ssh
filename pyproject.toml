@@ -21,6 +21,10 @@ dependencies = [
     "codecraftai-xmodules<2.0.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/code-craft-ai-company/codecraftai-protocol-ssh"
+Issues = "https://github.com/code-craft-ai-company/codecraftai-protocol-ssh/issues"
+
 [dependency-groups]
 dev = []
 dbio = []
