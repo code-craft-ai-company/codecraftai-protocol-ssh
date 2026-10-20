@@ -15,10 +15,10 @@ classifiers = [
 requires-python = ">=3.10,<4.0"
 dependencies = [
     "cryptography>=45.0.5,<51.0.0",
-    "codecraftai-foundations<2.0.0",
-    "codecraftai-credentials<2.0.0",
-    "codecraftai-interop<2.0.0",
-    "codecraftai-xmodules<2.0.0",
+    "codecraftai-foundations>=1.0.0,<2.0.0",
+    "codecraftai-credentials>=1.0.0,<2.0.0",
+    "codecraftai-interop>=1.0.0,<2.0.0",
+    "codecraftai-xmodules>=1.0.0,<2.0.0",
 ]
 
 [project.urls]
@@ -31,25 +31,6 @@ dbio = []
 
 [tool.poetry]
 packages = [{include="ccai", from="source/packages"}]
-
-[tool.poetry.dependencies]
-codecraftai-foundations = {source = "codecraftai"}
-codecraftai-credentials = {source = "codecraftai"}
-codecraftai-interop = {source = "codecraftai"}
-codecraftai-xmodules = {source = "codecraftai"}
-
-[[tool.poetry.source]]
-name = "codecraftai"
-url = "https://code-craft.ai/licensed-repository/simple/"
-priority = "supplemental"
-
-[[tool.uv.index]]
-# Same licensed index as [[tool.poetry.source]]. Listed before PyPI so that
-# codecraftai-* packages (direct and transitive) resolve from it; everything
-# else falls through to PyPI. Credentials: UV_INDEX_CODECRAFTAI_USERNAME /
-# UV_INDEX_CODECRAFTAI_PASSWORD, or `uv auth login`.
-name = "codecraftai"
-url = "https://code-craft.ai/licensed-repository/simple/"
 
 [tool.ruff.lint]
 # Deliberately narrow.  This gate exists for one reason: a bare `except:`
